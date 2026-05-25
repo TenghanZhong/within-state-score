@@ -33,6 +33,16 @@ data/raw/
 - `master_daily_features_macro_dailyonly_raw_only.csv`: adjusted ETF price and
   feature panel used for the external ETF universe.
 
+## ETF Universe
+
+The ETF universe contains 20 ETFs:
+EEM, GLD, HYG, IEF, IWM, LQD, QQQ, SPY, TLT, UUP,
+XLB, XLE, XLF, XLI, XLK, XLP, XLRE, XLU, XLV, XLY.
+
+The pipeline starts from 2015-10-08 to retain XLRE, drops ETF columns with
+missing values after that date, and computes daily percentage returns before
+forming rolling 252-day decision states.
+
 The code assumes the column conventions implemented in `src/CON2.py`. If a data
 provider changes headers or formats, adapt the local preprocessing step before
 running the full pipeline.
