@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SEEDS = (7, 11, 13, 17, 19, 23, 29, 31, 37, 41)
 FORBIDDEN_PATTERNS = (
     r"[A-Z]:\\",
-    "Baidu" + "Syncdisk",
+    "".join(["Bai", "du", "Sync", "disk"]),
     "Users" + r"\\",
     "Chat" + "GP" + "T",
     "Open" + "A" + "I",

@@ -1,6 +1,5 @@
 __pycache__/
 *.pyc
-*.baiduyun.uploading.cfg
 .pytest_cache/
 .ipynb_checkpoints/
 
