@@ -1,0 +1,63 @@
+# Reproduction Guide
+
+This repository supports three levels of reproduction.
+
+## Level 1: Inspect Included Tables and Figures
+
+No raw data are needed. The frozen 500-path result tables are in
+`results/frozen500/`, and the published figure artifacts are in `figures/`.
+
+Recommended check:
+
+```bash
+python scripts/validate_artifact.py
+```
+
+## Level 2: Rebuild Aggregate Figures
+
+No raw data are needed for aggregate figures because the required plot data and
+multi-seed result tables are included.
+
+```bash
+python src/Plot.py --results_dir results/frozen500 --out_dir figures/frozen500_rebuilt
+```
+
+This rebuilds the aggregate risk-frontier and placement-diagnostic figures from
+the included frozen-evaluation tables.
+
+## Level 3: Re-run Frozen 500-Path Evaluation
+
+Raw data are required. Prepare the files listed in `docs/DATA.md`, then run:
+
+```bash
+python src/CON2.py \
+  --data_dir data/raw \
+  --out_dir results/frozen500_rebuilt \
+  --seeds 7,11,13,17,19,23,29,31,37,41 \
+  --frozen_eval_only \
+  --frozen_eval_from checkpoints/source_50path \
+  --frozen_eval_mc_paths 500 \
+  --no_plots
+```
+
+This command reloads the source checkpoints in `checkpoints/source_50path/` and
+re-evaluates them using 500 common bootstrap scenario paths per decision state.
+
+## Mechanism Figure
+
+The node-level mechanism diagnostic uses saved trained coefficients from the
+source multi-seed run and recomputes asset-level optimal exposures on matched
+test states. It does not depend on the number of Monte Carlo payoff paths used
+in the frozen payoff re-evaluation.
+
+With raw data prepared:
+
+```bash
+python src/NodeMechanism.py \
+  --data_dir data/raw \
+  --base_out checkpoints/source_50path \
+  --fig_dir figures/mechanism_rebuilt
+```
+
+The precomputed mechanism figure and bins are provided in
+`figures/mechanism_source/`.

@@ -1,0 +1,13 @@
+dataset,method,display_method,feature_mode,message_graph_kind,benchmark_kind,penalty_kind,constrained_during_training,posthoc_projection
+industry,RawNodeMLP_GLS_NoGraph_HardEffort,raw node-feature learner,raw,equal,gls,none,True,False
+industry,GraphSignal-ICL-NoPenalty,feature-only contract,graph_scores,equal,gls,none,True,False
+industry,GraphSignal-ICL,graph-penalty contract,graph_scores,equal,gls,tail_cvar,True,False
+industry,RandomSignal-ICL,randomized-score contract,random_scores,equal,gls,random,True,False
+industry,FullGNN_TailMessage_GLSBenchmark_HardEffort,message-passing graph learner,raw,tail,gls,tail_cvar,True,False
+industry,RandomGraphGNN_GLSBenchmark_HardEffort,random-graph message-passing learner,raw,random,gls,random,True,False
+etf,ETF_RawNodeMLP_GLS_NoGraph_HardEffort,ETF raw node-feature learner,raw,equal,gls,none,True,False
+etf,ETF_GraphSignal-ICL-NoPenalty,ETF feature-only contract,graph_scores,equal,gls,none,True,False
+etf,ETF_GraphSignal-ICL,ETF graph-penalty contract,graph_scores,equal,gls,tail_cvar,True,False
+etf,ETF_RandomSignal-ICL,ETF randomized-score contract,random_scores,equal,gls,random,True,False
+etf,ETF_FullGNN_TailMessage_GLSBenchmark_HardEffort,ETF message-passing graph learner,raw,tail,gls,tail_cvar,True,False
+etf,ETF_RandomGraphGNN_GLSBenchmark_HardEffort,ETF random-graph message-passing learner,raw,random,gls,random,True,False

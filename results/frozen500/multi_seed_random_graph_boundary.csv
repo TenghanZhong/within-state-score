@@ -1,0 +1,2 @@
+status,reason,replacement
+deprecated_not_clean_identification,"RandomGraphGNN changes message passing, feature mode, and penalty score; use multi_seed_random_signal_boundary.csv for same-architecture random-score evidence.",multi_seed_random_signal_boundary.csv

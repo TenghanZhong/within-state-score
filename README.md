@@ -1,0 +1,123 @@
+# Within-State Score Placement Diagnostic
+
+This repository contains code, saved checkpoints, precomputed results, and figure
+artifacts for a within-state permutation diagnostic of graph-risk signal
+placement in learned portfolio contracts.
+
+The diagnostic asks whether a graph-risk score is more useful as an ordinary
+input feature or as an explicit penalty term inside the downstream decision
+rule. The randomized-score control preserves the within-state score
+distribution and explicit penalty placement while breaking asset-specific score
+ordering.
+
+## Repository Contents
+
+```text
+src/
+  CON2.py                 Training and frozen 500-path re-evaluation pipeline
+  Plot.py                 Figure generation from multi-seed result tables
+  NodeMechanism.py        Asset-level exposure mechanism diagnostic
+
+results/frozen500/
+  Precomputed frozen 500-path evaluation outputs used for the main tables
+
+checkpoints/source_50path/
+  Saved source checkpoints and source-run tables used to reproduce frozen
+  re-evaluation
+
+figures/frozen500/
+  Precomputed aggregate diagnostic figures and plot data
+
+figures/mechanism_source/
+  Precomputed asset-level mechanism figures and bin data
+
+docs/
+  DATA.md                 Data sources and expected local file names
+  REPRODUCTION.md         Reproduction commands and artifact levels
+  ARTIFACTS.md            File-level artifact guide
+
+scripts/
+  validate_artifact.py    Static checks for key files, paths, and headline values
+```
+
+## Main Precomputed Results
+
+The main frozen evaluation uses ten seeds:
+
+```text
+7, 11, 13, 17, 19, 23, 29, 31, 37, 41
+```
+
+Training used 50 bootstrap scenario paths per decision state. Reported test-set
+risk metrics were produced by reloading the saved source checkpoints and
+evaluating the trained policies with 500 common bootstrap scenario paths per
+state.
+
+The key table is:
+
+```text
+results/frozen500/multi_seed_paired_significance.csv
+```
+
+The table reports pooled test-set CVaR95 loss, crowding, and co-crash metrics
+for the feature-only, graph-penalty, and randomized-score contracts.
+
+## Quick Validation
+
+From the repository root:
+
+```bash
+python scripts/validate_artifact.py
+```
+
+The script checks that the expected result files, figure files, and source
+checkpoints are present; verifies that public artifacts do not contain local
+absolute paths; and prints the headline frozen-evaluation CVaR95 rows.
+
+## Rebuilding Figures from Included Results
+
+The aggregate figures can be rebuilt without raw market data:
+
+```bash
+python src/Plot.py --results_dir results/frozen500 --out_dir figures/frozen500_rebuilt
+```
+
+The asset-level mechanism figure requires rebuilding test states from the raw
+data files described in `docs/DATA.md`:
+
+```bash
+python src/NodeMechanism.py \
+  --data_dir data/raw \
+  --base_out checkpoints/source_50path \
+  --fig_dir figures/mechanism_rebuilt
+```
+
+## Re-running Frozen Evaluation
+
+The saved checkpoints are included. With the required raw data files prepared
+under `data/raw`, the frozen 500-path evaluation can be re-run as:
+
+```bash
+python src/CON2.py \
+  --data_dir data/raw \
+  --out_dir results/frozen500_rebuilt \
+  --seeds 7,11,13,17,19,23,29,31,37,41 \
+  --frozen_eval_only \
+  --frozen_eval_from checkpoints/source_50path \
+  --frozen_eval_mc_paths 500 \
+  --no_plots
+```
+
+The repository does not redistribute raw market data. See `docs/DATA.md` for
+data-source notes and expected file names.
+
+## Environment
+
+Install the Python dependencies with:
+
+```bash
+pip install -r requirements.txt
+```
+
+The code was written for Python 3.10+ and uses NumPy, pandas, SciPy, PyTorch,
+Matplotlib, and PyArrow.

@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.baiduyun.uploading.cfg
+.pytest_cache/
+.ipynb_checkpoints/
+
+data/raw/
+results/frozen500_rebuilt/
+figures/frozen500_rebuilt/
+figures/mechanism_rebuilt/
+
+.venv/
+venv/
+env/

@@ -1,0 +1,12 @@
+dataset,method,theta,eta,lambda
+industry,FixedSalary,0.0,0.0,0.0
+industry,LinearPnL,0.65,0.0,0.0
+industry,Linear_TailCVaRPenalty,0.65,0.0,0.02
+industry,EqualRPE,0.65,0.15,0.0
+industry,GLS_RPE,0.65,0.15,0.0
+industry,GraphRPE_tail_Diagnostic,0.65,0.15,0.0
+industry,EqualRPE_TailCVaRPenalty,0.65,0.15,0.02
+industry,GLS_RPE_TailCVaRPenalty,0.65,0.15,0.02
+industry,GLS_RPE_CentralityPenalty,0.65,0.15,0.02
+industry,GLS_RPE_LegacyMarginalPenalty,0.65,0.15,0.02
+industry,FullFixed_GLSBenchmark_GraphTailCVaR,0.65,0.15,0.02

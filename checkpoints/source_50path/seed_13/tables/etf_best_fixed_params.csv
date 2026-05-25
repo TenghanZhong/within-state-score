@@ -1,0 +1,12 @@
+dataset,method,theta,eta,lambda
+etf,FixedSalary,0.0,0.0,0.0
+etf,LinearPnL,0.65,0.0,0.0
+etf,Linear_TailCVaRPenalty,0.65,0.0,0.02
+etf,EqualRPE,0.65,0.15,0.0
+etf,GLS_RPE,0.65,0.15,0.0
+etf,GraphRPE_tail_Diagnostic,0.65,0.15,0.0
+etf,EqualRPE_TailCVaRPenalty,0.65,0.15,0.02
+etf,GLS_RPE_TailCVaRPenalty,0.65,0.15,0.02
+etf,GLS_RPE_CentralityPenalty,0.65,0.15,0.02
+etf,GLS_RPE_LegacyMarginalPenalty,0.65,0.15,0.02
+etf,FullFixed_GLSBenchmark_GraphTailCVaR,0.65,0.15,0.02

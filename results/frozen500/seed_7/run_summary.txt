@@ -1,0 +1,6 @@
+﻿frozen_eval=true
+source_seed_dir=checkpoints/source_50path/seed_7
+data_dir=data/raw
+source_mc_paths=50
+eval_mc_paths=500
+seed=7
