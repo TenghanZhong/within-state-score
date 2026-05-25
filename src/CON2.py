@@ -2573,7 +2573,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
         "torch_available": TORCH_AVAILABLE,
     }
 
-    # Optional reviewer-robustness-only mode. This skips fixed baselines, ETF,
+# Optional robustness-only mode. This skips fixed baselines, ETF,
     # plots, and stress summaries; it trains only the requested GraphSignal-ICL
     # robustness checks. Use this for the compact z_min and projection tables.
     if getattr(args, "robustness_only", False):
@@ -2649,7 +2649,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
         industry_all = industry_results.copy()
     industry_all.to_csv(tables_dir / "industry_main_results_all.csv", index=False)
 
-    # Two compact reviewer-facing robustness checks. They are intentionally
+# Two compact artifact-facing robustness checks. They are intentionally
     # limited to GraphSignal-ICL, so the main experimental structure is unchanged.
     if getattr(args, "run_zmin_sensitivity", False):
         if TORCH_AVAILABLE:
@@ -2870,7 +2870,7 @@ def aggregate_table_across_seeds(base_out: Path, seeds: List[int], rel_table: st
     write_display_csv(agg, base_out / f"multi_seed_{stem}_summary.csv")
 
 
-REVIEWER_SEED_METRICS = [
+ARTIFACT_SEED_METRICS = [
     "principal_CE",
     "policy_objective",
     "CVaR95_loss",
@@ -2882,7 +2882,7 @@ REVIEWER_SEED_METRICS = [
     "mean_systematic_exposure",
 ]
 
-REVIEWER_EPISODE_METRICS = [
+ARTIFACT_EPISODE_METRICS = [
     "principal_payoff",
     "principal_CVaR95_loss_episode",
     "crowding",
@@ -2891,7 +2891,7 @@ REVIEWER_EPISODE_METRICS = [
     "mean_systematic_exposure",
 ]
 
-REVIEWER_EPS = 1e-12
+ARTIFACT_EPS = 1e-12
 
 LOWER_IS_BETTER_METRICS = {
     "CVaR95_loss",
@@ -2911,7 +2911,7 @@ HIGHER_IS_BETTER_METRICS = {
     "mean_effort",
 }
 
-REVIEWER_COMPARISONS = {
+ARTIFACT_COMPARISONS = {
     "industry": [
         ("GraphSignal-ICL", "GraphSignal-ICL-NoPenalty", "placement_vs_feature_only"),
         ("GraphSignal-ICL", "RawNodeMLP_GLS_NoGraph_HardEffort", "placement_vs_raw_node"),
@@ -2972,7 +2972,7 @@ def bootstrap_delta_summary(values: np.ndarray, reps: int = 5000, seed: int = 20
 def sign_test_pvalue(values: np.ndarray) -> float:
     values = np.asarray(values, dtype=float)
     values = values[np.isfinite(values)]
-    values = values[np.abs(values) > REVIEWER_EPS]
+    values = values[np.abs(values) > ARTIFACT_EPS]
     n = int(len(values))
     if n == 0:
         return np.nan
@@ -2986,7 +2986,7 @@ def sign_test_pvalue(values: np.ndarray) -> float:
 def wilcoxon_pvalue(values: np.ndarray) -> float:
     values = np.asarray(values, dtype=float)
     values = values[np.isfinite(values)]
-    values = values[np.abs(values) > REVIEWER_EPS]
+    values = values[np.abs(values) > ARTIFACT_EPS]
     if len(values) < 2:
         return np.nan
     try:
@@ -3001,9 +3001,9 @@ def sign_consistency(values: np.ndarray) -> Dict[str, int]:
     values = np.asarray(values, dtype=float)
     values = values[np.isfinite(values)]
     return {
-        "n_positive": int(np.sum(values > REVIEWER_EPS)),
-        "n_negative": int(np.sum(values < -REVIEWER_EPS)),
-        "n_zero": int(np.sum(np.abs(values) <= REVIEWER_EPS)),
+        "n_positive": int(np.sum(values > ARTIFACT_EPS)),
+        "n_negative": int(np.sum(values < -ARTIFACT_EPS)),
+        "n_zero": int(np.sum(np.abs(values) <= ARTIFACT_EPS)),
     }
 
 
@@ -3062,13 +3062,13 @@ def read_episode_level_results(base_out: Path, seeds: Sequence[int], dataset: st
 
 def paired_seed_significance_table(base_out: Path, seeds: Sequence[int], reps: int = 10000) -> pd.DataFrame:
     out_rows = []
-    for dataset, comparisons in REVIEWER_COMPARISONS.items():
+    for dataset, comparisons in ARTIFACT_COMPARISONS.items():
         df = read_seed_level_results(base_out, seeds, dataset)
         if df.empty:
             continue
         for treatment, baseline, comparison_type in comparisons:
             comparison = f"{treatment} minus {baseline}"
-            for metric in REVIEWER_SEED_METRICS:
+            for metric in ARTIFACT_SEED_METRICS:
                 if metric not in df.columns:
                     continue
                 pivot = df.pivot_table(index="seed", columns="method", values=metric, aggfunc="first")
@@ -3089,7 +3089,7 @@ def paired_seed_significance_table(base_out: Path, seeds: Sequence[int], reps: i
                         "mean_treatment": mean_treatment,
                         "mean_baseline": mean_baseline,
                         "delta": summary["delta"],
-                        "delta_pct": float(summary["delta"] / (abs(mean_baseline) + REVIEWER_EPS)) if np.isfinite(mean_baseline) else np.nan,
+                    "delta_pct": float(summary["delta"] / (abs(mean_baseline) + ARTIFACT_EPS)) if np.isfinite(mean_baseline) else np.nan,
                         "ci_low": summary["ci_low"],
                         "ci_high": summary["ci_high"],
                         "p_sign": summary["p_sign"],
@@ -3116,13 +3116,13 @@ def paired_seed_significance_table(base_out: Path, seeds: Sequence[int], reps: i
 
 def episode_bootstrap_table(base_out: Path, seeds: Sequence[int], reps: int = 5000) -> pd.DataFrame:
     out_rows = []
-    for dataset, comparisons in REVIEWER_COMPARISONS.items():
+    for dataset, comparisons in ARTIFACT_COMPARISONS.items():
         df = read_episode_level_results(base_out, seeds, dataset)
         if df.empty or "date" not in df.columns:
             continue
         for treatment, baseline, comparison_type in comparisons:
             comparison = f"{treatment} minus {baseline}"
-            for metric in REVIEWER_EPISODE_METRICS:
+            for metric in ARTIFACT_EPISODE_METRICS:
                 if metric not in df.columns:
                     continue
                 pivot = df.pivot_table(index=["seed", "date"], columns="method", values=metric, aggfunc="first")
@@ -3142,7 +3142,7 @@ def episode_bootstrap_table(base_out: Path, seeds: Sequence[int], reps: int = 50
                         "mean_treatment": mean_treatment,
                         "mean_baseline": mean_baseline,
                         "delta": summary["delta"],
-                        "delta_pct": float(summary["delta"] / (abs(mean_baseline) + REVIEWER_EPS)) if np.isfinite(mean_baseline) else np.nan,
+                    "delta_pct": float(summary["delta"] / (abs(mean_baseline) + ARTIFACT_EPS)) if np.isfinite(mean_baseline) else np.nan,
                         "ci_low": summary["ci_low"],
                         "ci_high": summary["ci_high"],
                         "p_two_sided": summary["p_sign"],
@@ -3165,13 +3165,13 @@ def episode_bootstrap_table(base_out: Path, seeds: Sequence[int], reps: int = 50
 
 def cluster_episode_bootstrap_table(base_out: Path, seeds: Sequence[int], reps: int = 5000) -> pd.DataFrame:
     out_rows = []
-    for dataset, comparisons in REVIEWER_COMPARISONS.items():
+    for dataset, comparisons in ARTIFACT_COMPARISONS.items():
         df = read_episode_level_results(base_out, seeds, dataset)
         if df.empty or "date" not in df.columns:
             continue
         for treatment, baseline, comparison_type in comparisons:
             comparison = f"{treatment} minus {baseline}"
-            for metric in REVIEWER_EPISODE_METRICS:
+            for metric in ARTIFACT_EPISODE_METRICS:
                 if metric not in df.columns:
                     continue
                 pivot = df.pivot_table(index=["seed", "date"], columns="method", values=metric, aggfunc="first")
@@ -3196,7 +3196,7 @@ def cluster_episode_bootstrap_table(base_out: Path, seeds: Sequence[int], reps: 
                         "mean_treatment": mean_treatment,
                         "mean_baseline": mean_baseline,
                         "delta": summary["delta"],
-                        "delta_pct": float(summary["delta"] / (abs(mean_baseline) + REVIEWER_EPS)) if np.isfinite(mean_baseline) else np.nan,
+                    "delta_pct": float(summary["delta"] / (abs(mean_baseline) + ARTIFACT_EPS)) if np.isfinite(mean_baseline) else np.nan,
                         "ci_low": summary["ci_low"],
                         "ci_high": summary["ci_high"],
                         "p_two_sided": summary["p_sign"],
@@ -3352,7 +3352,7 @@ def method_design_audit_table(base_out: Path, seeds: Sequence[int]) -> pd.DataFr
         if rows
         else pd.DataFrame(columns=["dataset", "method"] + metadata_cols)
     )
-    write_display_csv(out, base_out / "reviewer_method_design_audit.csv")
+    write_display_csv(out, base_out / "method_design_audit.csv")
     return out
 
 
@@ -3422,7 +3422,7 @@ def claim_diagnostics_table(paired: pd.DataFrame, boundary: pd.DataFrame, base_o
     return out
 
 
-def run_reviewer_facing_diagnostics(base_out: Path, seeds: Sequence[int], seed_reps: int = 10000, episode_reps: int = 5000) -> Dict[str, pd.DataFrame]:
+def run_artifact_diagnostics(base_out: Path, seeds: Sequence[int], seed_reps: int = 10000, episode_reps: int = 5000) -> Dict[str, pd.DataFrame]:
     base_out = Path(base_out)
     paired = paired_seed_significance_table(base_out, seeds, reps=seed_reps)
     episode = episode_bootstrap_table(base_out, seeds, reps=episode_reps)
@@ -3454,7 +3454,7 @@ def aggregate_multi_seed_outputs(base_out: Path, seeds: List[int]) -> None:
     aggregate_table_across_seeds(base_out, seeds, "etf_neural_results.csv", ["method"])
     aggregate_table_across_seeds(base_out, seeds, "industry_zmin_sensitivity.csv", ["z_min", "method"])
     aggregate_table_across_seeds(base_out, seeds, "industry_projection_ablation_results.csv", ["method"])
-    run_reviewer_facing_diagnostics(base_out, seeds)
+    run_artifact_diagnostics(base_out, seeds)
 
 
 def run_multi_seed(args: argparse.Namespace) -> None:

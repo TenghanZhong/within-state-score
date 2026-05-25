@@ -195,7 +195,7 @@ def significance_marker(row: pd.Series) -> str:
 
 
 def make_placement_effect_plot(results_root: Path, out_dir: Path) -> Path:
-    """Main reviewer-facing figure: explicit penalty placement effects."""
+    """Main artifact figure: explicit penalty placement effects."""
     paired = read_required_csv(results_root / "multi_seed_paired_significance.csv", "paired significance table")
     sub = paired[
         (paired["comparison_type"] == "placement_vs_feature_only")
