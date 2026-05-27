@@ -27,6 +27,8 @@ REQUIRED_FILES = [
     "results/frozen500/multi_seed_paired_significance.csv",
     "results/frozen500/multi_seed_cluster_episode_bootstrap.csv",
     "results/frozen500/frozen_reevaluation_summary.txt",
+    "results/constant_score_500/multi_seed_paired_significance.csv",
+    "results/constant_score_500/multi_seed_cluster_episode_bootstrap.csv",
     "figures/frozen500/fig1_risk_frontier_core.pdf",
     "figures/frozen500/fig1_risk_frontier_core_plot_data.csv",
     "figures/mechanism_source/fig_mechanism_graph_minus_feature.pdf",
@@ -109,14 +111,42 @@ def check_headline_cvar() -> None:
             fail(f"unexpected values for {key}: got {got}, expected {rounded_expected}")
 
 
+def check_constant_score_ablation() -> None:
+    path = ROOT / "results" / "constant_score_500" / "multi_seed_paired_significance.csv"
+    rows = read_csv(path)
+    wanted = {
+        ("industry", "constant_penalty_vs_feature_only", "CVaR95_loss"): (-0.0093, -0.0106, -0.0081),
+        ("industry", "graph_penalty_vs_constant_penalty", "crowding"): (-0.0079, -0.0109, -0.0051),
+        ("etf", "constant_penalty_vs_feature_only", "CVaR95_loss"): (-0.0163, -0.0175, -0.0152),
+        ("etf", "graph_penalty_vs_constant_penalty", "crowding"): (-0.0043, -0.0070, -0.0019),
+    }
+    index = {
+        (r["dataset"], r["comparison_type"], r["metric"]): r
+        for r in rows
+    }
+    for key, expected in wanted.items():
+        if key not in index:
+            fail(f"missing constant-score ablation row: {key}")
+        row = index[key]
+        got = (
+            round(float(row["delta"]), 4),
+            round(float(row["ci_low"]), 4),
+            round(float(row["ci_high"]), 4),
+        )
+        if got != expected:
+            fail(f"unexpected constant-score values for {key}: got {got}, expected {expected}")
+
+
 def main() -> None:
     check_required_files()
     check_checkpoints()
     check_forbidden_text()
     check_headline_cvar()
+    check_constant_score_ablation()
     print("Artifact validation passed.")
     print("Saved model checkpoints: 120")
     print("Frozen 500-path CVaR rows match expected rounded values.")
+    print("Constant-score ablation rows match expected rounded values.")
 
 
 if __name__ == "__main__":

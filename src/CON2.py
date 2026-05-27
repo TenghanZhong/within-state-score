@@ -256,6 +256,7 @@ PAPER_METHOD_NAMES: Dict[str, str] = {
     "FullFixed_GLSBenchmark_GraphTailCVaR": "fixed graph-risk penalty contract",
     "RawNodeMLP_GLS_NoGraph_HardEffort": "raw node-feature learner",
     "GraphSignal-ICL-NoPenalty": "feature-only contract",
+    "GraphSignal-ICL-ConstantPenalty": "constant-score penalty contract",
     "GraphSignal-ICL": "graph-penalty contract",
     "GraphScoreMLP_GLS_TailCVaR_HardEffort": "graph-penalty contract",
     "RandomSignal-ICL": "randomized-score contract",
@@ -263,6 +264,7 @@ PAPER_METHOD_NAMES: Dict[str, str] = {
     "RandomGraphGNN_GLSBenchmark_HardEffort": "random-graph message-passing learner",
     "ETF_RawNodeMLP_GLS_NoGraph_HardEffort": "ETF raw node-feature learner",
     "ETF_GraphSignal-ICL-NoPenalty": "ETF feature-only contract",
+    "ETF_GraphSignal-ICL-ConstantPenalty": "ETF constant-score penalty contract",
     "ETF_GraphSignal-ICL": "ETF graph-penalty contract",
     "ETF_RandomSignal-ICL": "ETF randomized-score contract",
     "ETF_FullGNN_TailMessage_GLSBenchmark_HardEffort": "ETF message-passing graph learner",
@@ -321,6 +323,16 @@ def add_display_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 def write_display_csv(df: pd.DataFrame, path: Path, index: bool = False) -> None:
     add_display_columns(df).to_csv(path, index=index)
+
+
+def normalize_date_series(values: pd.Series) -> pd.Series:
+    def _one(value: object) -> object:
+        ts = pd.to_datetime(value, errors="coerce")
+        if pd.isna(ts):
+            return np.nan
+        return ts.strftime("%Y-%m-%d")
+
+    return values.map(_one)
 
 
 def _version_score_for_filename(path: Path) -> Tuple[int, int, str]:
@@ -1068,6 +1080,8 @@ def get_weights(es: EpisodeSet, kind: str) -> np.ndarray:
 def get_penalty_score(es: EpisodeSet, kind: str) -> np.ndarray:
     if kind == "none":
         return np.zeros_like(es.m_marginal)
+    if kind in {"constant", "constant_score"}:
+        return np.ones_like(es.m_tail_cvar)
     if kind == "marginal":
         return es.m_marginal
     if kind in {"tail_cvar", "cvar", "tail"}:
@@ -1553,6 +1567,8 @@ def choose_torch_W(data: Dict[str, "torch.Tensor"], kind: str) -> "torch.Tensor"
 def choose_torch_m(data: Dict[str, "torch.Tensor"], kind: str) -> "torch.Tensor":
     if kind == "none":
         return torch.zeros_like(data["m_tail_cvar"])
+    if kind in {"constant", "constant_score"}:
+        return torch.ones_like(data["m_tail_cvar"])
     if kind in {"tail_cvar", "cvar", "tail"}:
         return data["m_tail_cvar"]
     if kind == "marginal":
@@ -1721,6 +1737,7 @@ def neural_contract_specs(cfg: ExperimentConfig, dataset: str) -> List[Dict[str,
         return [
             dict(label="RawNodeMLP_GLS_NoGraph_HardEffort", use_graph=False, graph_kind="equal", benchmark_kind=cfg.neural_peer_benchmark, penalty_kind="none", feature_mode="raw"),
             dict(label="GraphSignal-ICL-NoPenalty", use_graph=False, graph_kind="equal", benchmark_kind=cfg.neural_peer_benchmark, penalty_kind="none", feature_mode="graph_scores"),
+            dict(label="GraphSignal-ICL-ConstantPenalty", use_graph=False, graph_kind="equal", benchmark_kind=cfg.neural_peer_benchmark, penalty_kind="constant", feature_mode="graph_scores"),
             dict(label="GraphSignal-ICL", use_graph=False, graph_kind="equal", benchmark_kind=cfg.neural_peer_benchmark, penalty_kind="tail_cvar", feature_mode="graph_scores"),
             dict(label="RandomSignal-ICL", use_graph=False, graph_kind="equal", benchmark_kind=cfg.neural_peer_benchmark, penalty_kind="random", feature_mode="random_scores"),
             dict(label="FullGNN_TailMessage_GLSBenchmark_HardEffort", use_graph=True, graph_kind="tail", benchmark_kind=cfg.neural_peer_benchmark, penalty_kind="tail_cvar", feature_mode="raw"),
@@ -1730,6 +1747,7 @@ def neural_contract_specs(cfg: ExperimentConfig, dataset: str) -> List[Dict[str,
         return [
             dict(label="ETF_RawNodeMLP_GLS_NoGraph_HardEffort", use_graph=False, graph_kind="equal", benchmark_kind=cfg.neural_peer_benchmark, penalty_kind="none", feature_mode="raw"),
             dict(label="ETF_GraphSignal-ICL-NoPenalty", use_graph=False, graph_kind="equal", benchmark_kind=cfg.neural_peer_benchmark, penalty_kind="none", feature_mode="graph_scores"),
+            dict(label="ETF_GraphSignal-ICL-ConstantPenalty", use_graph=False, graph_kind="equal", benchmark_kind=cfg.neural_peer_benchmark, penalty_kind="constant", feature_mode="graph_scores"),
             dict(label="ETF_GraphSignal-ICL", use_graph=False, graph_kind="equal", benchmark_kind=cfg.neural_peer_benchmark, penalty_kind="tail_cvar", feature_mode="graph_scores"),
             dict(label="ETF_RandomSignal-ICL", use_graph=False, graph_kind="equal", benchmark_kind=cfg.neural_peer_benchmark, penalty_kind="random", feature_mode="random_scores"),
             dict(label="ETF_FullGNN_TailMessage_GLSBenchmark_HardEffort", use_graph=True, graph_kind="tail", benchmark_kind=cfg.neural_peer_benchmark, penalty_kind="tail_cvar", feature_mode="raw"),
@@ -2623,6 +2641,9 @@ def run_pipeline(args: argparse.Namespace) -> None:
                 # but removes the contract penalty term by forcing lambda to zero.
                 # This isolates graph-state conditioning from the systemic-penalty mechanism.
                 dict(label="GraphSignal-ICL-NoPenalty", use_graph=False, graph_kind="equal", benchmark_kind=cfg.neural_peer_benchmark, penalty_kind="none", feature_mode="graph_scores"),
+                # Constant-score penalty baseline: same graph-score features and lambda channel,
+                # but the explicit penalty multiplier is one instead of the graph-risk score.
+                dict(label="GraphSignal-ICL-ConstantPenalty", use_graph=False, graph_kind="equal", benchmark_kind=cfg.neural_peer_benchmark, penalty_kind="constant", feature_mode="graph_scores"),
                 # Main model GraphSignal-ICL: node-level graph-risk-signal contract learner; sees tail-CVaR graph risk score and uses it in the systemic penalty term.
                 dict(label="GraphSignal-ICL", use_graph=False, graph_kind="equal", benchmark_kind=cfg.neural_peer_benchmark, penalty_kind="tail_cvar", feature_mode="graph_scores"),
                 # Same-architecture random-signal control: no message passing, same decision rule,
@@ -2695,6 +2716,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
                     etf_specs = [
                         dict(label="ETF_RawNodeMLP_GLS_NoGraph_HardEffort", use_graph=False, graph_kind="equal", benchmark_kind=cfg.neural_peer_benchmark, penalty_kind="none", feature_mode="raw"),
                         dict(label="ETF_GraphSignal-ICL-NoPenalty", use_graph=False, graph_kind="equal", benchmark_kind=cfg.neural_peer_benchmark, penalty_kind="none", feature_mode="graph_scores"),
+                        dict(label="ETF_GraphSignal-ICL-ConstantPenalty", use_graph=False, graph_kind="equal", benchmark_kind=cfg.neural_peer_benchmark, penalty_kind="constant", feature_mode="graph_scores"),
                         dict(label="ETF_GraphSignal-ICL", use_graph=False, graph_kind="equal", benchmark_kind=cfg.neural_peer_benchmark, penalty_kind="tail_cvar", feature_mode="graph_scores"),
                         dict(label="ETF_RandomSignal-ICL", use_graph=False, graph_kind="equal", benchmark_kind=cfg.neural_peer_benchmark, penalty_kind="random", feature_mode="random_scores"),
                         dict(label="ETF_FullGNN_TailMessage_GLSBenchmark_HardEffort", use_graph=True, graph_kind="tail", benchmark_kind=cfg.neural_peer_benchmark, penalty_kind="tail_cvar", feature_mode="raw"),
@@ -2913,11 +2935,15 @@ HIGHER_IS_BETTER_METRICS = {
 
 ARTIFACT_COMPARISONS = {
     "industry": [
+        ("GraphSignal-ICL-ConstantPenalty", "GraphSignal-ICL-NoPenalty", "constant_penalty_vs_feature_only"),
+        ("GraphSignal-ICL", "GraphSignal-ICL-ConstantPenalty", "graph_penalty_vs_constant_penalty"),
         ("GraphSignal-ICL", "GraphSignal-ICL-NoPenalty", "placement_vs_feature_only"),
         ("GraphSignal-ICL", "RawNodeMLP_GLS_NoGraph_HardEffort", "placement_vs_raw_node"),
         ("GraphSignal-ICL", "RandomSignal-ICL", "learned_signal_vs_random_signal"),
     ],
     "etf": [
+        ("ETF_GraphSignal-ICL-ConstantPenalty", "ETF_GraphSignal-ICL-NoPenalty", "constant_penalty_vs_feature_only"),
+        ("ETF_GraphSignal-ICL", "ETF_GraphSignal-ICL-ConstantPenalty", "graph_penalty_vs_constant_penalty"),
         ("ETF_GraphSignal-ICL", "ETF_GraphSignal-ICL-NoPenalty", "placement_vs_feature_only"),
         ("ETF_GraphSignal-ICL", "ETF_RawNodeMLP_GLS_NoGraph_HardEffort", "placement_vs_raw_node"),
         ("ETF_GraphSignal-ICL", "ETF_RandomSignal-ICL", "learned_signal_vs_random_signal"),
@@ -3040,6 +3066,8 @@ def read_seed_level_results(base_out: Path, seeds: Sequence[int], dataset: str) 
         if not path.exists():
             continue
         df = pd.read_csv(path)
+        if "date" in df.columns:
+            df["date"] = normalize_date_series(df["date"])
         df["seed"] = int(seed)
         df["dataset"] = dataset
         rows.append(df)
@@ -3054,6 +3082,8 @@ def read_episode_level_results(base_out: Path, seeds: Sequence[int], dataset: st
         if not path.exists():
             continue
         df = pd.read_csv(path)
+        if "date" in df.columns:
+            df["date"] = normalize_date_series(df["date"])
         df["seed"] = int(seed)
         df["dataset"] = dataset
         rows.append(df)

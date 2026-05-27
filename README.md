@@ -21,6 +21,10 @@ src/
 results/frozen500/
   Precomputed frozen 500-path evaluation outputs used for the main tables
 
+results/constant_score_500/
+  Constant-score penalty ablation outputs, combining the frozen 500-path
+  reference rows with a newly trained unscored explicit-penalty baseline
+
 checkpoints/source_50path/
   Saved source checkpoints and source-run tables used to reproduce frozen
   re-evaluation
@@ -43,6 +47,8 @@ docs/
 
 scripts/
   validate_artifact.py    Static checks for key files, paths, and headline values
+  run_constant_score_ablation.py
+                           Train and evaluate the constant-score penalty ablation
 ```
 
 ## Main Precomputed Results
@@ -66,6 +72,18 @@ results/frozen500/multi_seed_paired_significance.csv
 
 The table reports pooled test-set CVaR95 loss, crowding, and co-crash metrics
 for the feature-only, graph-penalty, and randomized-score contracts.
+
+The constant-score penalty ablation is reported under:
+
+```text
+results/constant_score_500/multi_seed_paired_significance.csv
+results/constant_score_500/multi_seed_cluster_episode_bootstrap.csv
+```
+
+This ablation keeps the graph score in the feature map, replaces the explicit
+penalty multiplier by one, and retrains the learned contract. It separates the
+effect of an explicit heterogeneous penalty channel from the additional effect
+of directly multiplying the penalty by the graph-risk score.
 
 ## Quick Validation
 
@@ -111,6 +129,19 @@ python src/CON2.py \
   --frozen_eval_from checkpoints/source_50path \
   --frozen_eval_mc_paths 500 \
   --no_plots
+```
+
+The constant-score ablation can be rerun as:
+
+```bash
+python scripts/run_constant_score_ablation.py \
+  --data_dir data/raw \
+  --out_dir results/constant_score_500_rebuilt \
+  --reference_results_dir results/frozen500 \
+  --seeds 7,11,13,17,19,23,29,31,37,41 \
+  --epochs 250 \
+  --mc_paths 50 \
+  --frozen_eval_mc_paths 500
 ```
 
 The repository does not redistribute raw market data. See `docs/DATA.md` for

@@ -5,8 +5,11 @@ __pycache__/
 
 data/raw/
 results/frozen500_rebuilt/
+results/constant_score_500_rebuilt/
+results/constant_score_smoke/
 figures/frozen500_rebuilt/
 figures/mechanism_rebuilt/
+exports/
 
 .venv/
 venv/

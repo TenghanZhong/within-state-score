@@ -5,7 +5,9 @@ This repository supports three levels of reproduction.
 ## Level 1: Inspect Included Tables and Figures
 
 No raw data are needed. The frozen 500-path result tables are in
-`results/frozen500/`, and the published figure artifacts are in `figures/`.
+`results/frozen500/`. The constant-score penalty ablation is in
+`results/constant_score_500/`, and the published figure artifacts are in
+`figures/`.
 
 Recommended check:
 
@@ -42,6 +44,26 @@ python src/CON2.py \
 
 This command reloads the source checkpoints in `checkpoints/source_50path/` and
 re-evaluates them using 500 common bootstrap scenario paths per decision state.
+
+## Constant-Score Penalty Ablation
+
+The constant-score baseline keeps graph-score features but replaces the
+explicit penalty multiplier by one. It must be trained and evaluated as its own
+variant:
+
+```bash
+python scripts/run_constant_score_ablation.py \
+  --data_dir data/raw \
+  --out_dir results/constant_score_500_rebuilt \
+  --reference_results_dir results/frozen500 \
+  --seeds 7,11,13,17,19,23,29,31,37,41 \
+  --epochs 250 \
+  --mc_paths 50 \
+  --frozen_eval_mc_paths 500
+```
+
+The script writes paired seed-level and clustered episode-level diagnostic
+tables under the requested output directory.
 
 ## Mechanism Figure
 

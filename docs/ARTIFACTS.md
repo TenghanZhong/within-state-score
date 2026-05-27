@@ -18,6 +18,19 @@
 - `results/frozen500/method_design_audit.csv`: method-design audit
   table for matched architecture, feasibility, and control settings.
 
+## Constant-Score Penalty Ablation
+
+- `results/constant_score_500/multi_seed_paired_significance.csv`:
+  seed-level paired tests after adding the constant-score penalty baseline.
+- `results/constant_score_500/multi_seed_cluster_episode_bootstrap.csv`:
+  clustered bootstrap intervals for the same ablation.
+- `results/constant_score_500/seed_*/source_50path_tables/*ConstantPenalty_model.pt`:
+  source checkpoints trained for the constant-score baseline.
+
+The constant-score baseline keeps graph-score features but sets the explicit
+penalty multiplier to one. This separates the explicit heterogeneous penalty
+channel from the direct graph-score multiplier.
+
 ## Source Checkpoints
 
 - `checkpoints/source_50path/seed_*/tables/*_model.pt`: saved PyTorch state
