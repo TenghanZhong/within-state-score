@@ -624,6 +624,7 @@ class EpisodeSet:
     m_tail_cvar: np.ndarray     # B x N, tail-event marginal loss score
     m_centrality: np.ndarray    # B x N
     m_random: np.ndarray        # B x N, permuted graph-risk score for clean random controls
+    random_perm: np.ndarray     # B x N, permutation shared by randomized features and penalty
     s0: np.ndarray              # B x N
     pi: np.ndarray              # B x N
     mu: np.ndarray              # B x N
@@ -666,6 +667,7 @@ class EpisodeSet:
             m_tail_cvar=self.m_tail_cvar[idx],
             m_centrality=self.m_centrality[idx],
             m_random=self.m_random[idx],
+            random_perm=self.random_perm[idx],
             s0=self.s0[idx],
             pi=self.pi[idx],
             mu=self.mu[idx],
@@ -817,7 +819,7 @@ def build_episode_set(
 
     arrays: Dict[str, List[Any]] = {k: [] for k in [
         "dates", "features", "W_equal", "W_tail", "W_corr", "W_gls", "W_random",
-        "m_marginal", "m_tail_cvar", "m_centrality", "m_random", "s0", "pi", "mu", "alpha", "k_cost", "h_cost",
+        "m_marginal", "m_tail_cvar", "m_centrality", "m_random", "random_perm", "s0", "pi", "mu", "alpha", "k_cost", "h_cost",
         "gamma", "sigma_episode", "varF_episode", "Fsum", "resid_sum", "beta_noise",
         "Fsum_mc", "resid_sum_mc", "beta_noise_mc", "q5_episode", "Q", "vix",
     ]}
@@ -929,8 +931,10 @@ def build_episode_set(
         m_tail_raw = Q @ tail_contrib
         m_tail_pos = np.maximum(m_tail_raw, 0.0)
         m_tail_cvar = m_tail_pos / (np.mean(m_tail_pos) + 1e-8)
-        # Clean random negative-control score: permute the graph-risk score across nodes.
-        m_random = m_tail_cvar[rng.permutation(n)]
+        # Clean random negative-control score: use one within-state permutation
+        # for both the tail-score feature and the explicit penalty multiplier.
+        random_perm = rng.permutation(n)
+        m_random = m_tail_cvar[random_perm]
 
         # Graph-propagated tail-shock generation. Earlier versions generated
         # future residual shocks by factor/residual bootstrap only, so the true
@@ -986,6 +990,7 @@ def build_episode_set(
         arrays["m_tail_cvar"].append(m_tail_cvar)
         arrays["m_centrality"].append(m_cent)
         arrays["m_random"].append(m_random)
+        arrays["random_perm"].append(random_perm)
         arrays["s0"].append(s0)
         arrays["pi"].append(pi)
         arrays["mu"].append(mu)
@@ -1025,6 +1030,7 @@ def build_episode_set(
         m_tail_cvar=stack("m_tail_cvar"),
         m_centrality=stack("m_centrality"),
         m_random=stack("m_random"),
+        random_perm=np.asarray(arrays["random_perm"], dtype=np.int64),
         s0=stack("s0"),
         pi=stack("pi"),
         mu=stack("mu"),
@@ -1089,7 +1095,7 @@ def get_penalty_score(es: EpisodeSet, kind: str) -> np.ndarray:
     if kind == "centrality":
         return es.m_centrality
     if kind == "random":
-        return es.m_random
+        return np.take_along_axis(es.m_tail_cvar, es.random_perm, axis=1)
     raise ValueError(f"Unknown penalty_kind={kind}")
 
 
@@ -1400,6 +1406,7 @@ def torchify_episode_set(es: EpisodeSet, device: str = "cpu") -> Dict[str, "torc
         "m_tail_cvar": t(es.m_tail_cvar),
         "m_centrality": t(es.m_centrality),
         "m_random": t(es.m_random),
+        "random_perm": t(es.random_perm, dtype=torch.long),
         "s0": t(es.s0),
         "pi": t(es.pi),
         "mu": t(es.mu),
@@ -1526,7 +1533,8 @@ def feature_indices(mode: str) -> List[int]:
     centrality_score, tail_cvar_score, vix]. Raw mode removes graph-derived
     scores so RawNodeMLP and clean RandomGNN cannot leak true graph information.
     Random-score mode keeps the same dimensionality as GraphSignal-ICL but
-    replaces graph-derived risk-score columns with the randomized score.
+    permutes only the standardized tail-CVaR score. Centrality and all other
+    feature columns remain unchanged.
     """
     if mode == "raw":
         return [0, 1, 2, 3, 4, 5, 8]
@@ -1543,8 +1551,11 @@ def select_torch_features(data: Dict[str, "torch.Tensor"], mode: str) -> "torch.
     """Select feature tensors, with a same-architecture random-signal control."""
     if mode == "random_scores":
         x = data["features"].clone()
-        x[..., 6] = data["m_random"]
-        x[..., 7] = data["m_random"]
+        x[..., 7] = torch.gather(
+            data["features"][..., 7],
+            dim=1,
+            index=data["random_perm"],
+        )
         return x
     cols = feature_indices(mode)
     return data["features"][..., cols]
@@ -1576,7 +1587,11 @@ def choose_torch_m(data: Dict[str, "torch.Tensor"], kind: str) -> "torch.Tensor"
     if kind == "centrality":
         return data["m_centrality"]
     if kind == "random":
-        return data["m_random"]
+        return torch.gather(
+            data["m_tail_cvar"],
+            dim=1,
+            index=data["random_perm"],
+        )
     raise ValueError(f"Unknown torch penalty kind={kind}")
 
 
@@ -1863,7 +1878,14 @@ def copy_random_controls(source: EpisodeSet, target: EpisodeSet) -> EpisodeSet:
         raise ValueError(f"Date mismatch between source={source.name} and target={target.name}")
     if source.N != target.N or source.B != target.B:
         raise ValueError(f"Shape mismatch between source={source.name} and target={target.name}")
-    target.m_random = np.array(source.m_random, copy=True)
+    if list(source.symbols) != list(target.symbols):
+        raise ValueError(f"Symbol-order mismatch between source={source.name} and target={target.name}")
+    target.random_perm = np.array(source.random_perm, copy=True)
+    target.m_random = np.take_along_axis(
+        target.m_tail_cvar,
+        target.random_perm,
+        axis=1,
+    )
     target.W_random = np.array(source.W_random, copy=True)
     return target
 
@@ -2310,6 +2332,8 @@ def run_synthetic_mechanism(cfg: ExperimentConfig, out_dir: Path) -> pd.DataFram
     Q = D + A + 1e-3 * np.eye(N)
     degree = A.sum(axis=1)
     m = degree / (degree.mean() + 1e-8)
+    W_random = random_permuted_weights(W, rng)
+    random_perm = rng.permutation(N)
 
     # Build a one-episode EpisodeSet manually.
     es = EpisodeSet(
@@ -2321,11 +2345,12 @@ def run_synthetic_mechanism(cfg: ExperimentConfig, out_dir: Path) -> pd.DataFram
         W_tail=np.expand_dims(W, 0),
         W_corr=np.expand_dims(W, 0),
         W_gls=np.expand_dims(W, 0),
-        W_random=np.expand_dims(random_permuted_weights(W, rng), 0),
+        W_random=np.expand_dims(W_random, 0),
         m_marginal=np.expand_dims(m, 0),
         m_tail_cvar=np.expand_dims(m, 0),
         m_centrality=np.expand_dims(m, 0),
-        m_random=np.expand_dims(m[rng.permutation(N)], 0),
+        m_random=np.expand_dims(m[random_perm], 0),
+        random_perm=np.expand_dims(random_perm, 0),
         s0=np.ones((1, N)),
         pi=np.full((1, N), cfg.pi0),
         mu=np.zeros((1, N)),
@@ -2647,7 +2672,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
                 # Main model GraphSignal-ICL: node-level graph-risk-signal contract learner; sees tail-CVaR graph risk score and uses it in the systemic penalty term.
                 dict(label="GraphSignal-ICL", use_graph=False, graph_kind="equal", benchmark_kind=cfg.neural_peer_benchmark, penalty_kind="tail_cvar", feature_mode="graph_scores"),
                 # Same-architecture random-signal control: no message passing, same decision rule,
-                # but graph-risk feature columns and the explicit penalty score are randomized.
+                # but the tail-risk feature and explicit penalty score share one permutation.
                 dict(label="RandomSignal-ICL", use_graph=False, graph_kind="equal", benchmark_kind=cfg.neural_peer_benchmark, penalty_kind="random", feature_mode="random_scores"),
                 # GNN ablation: raw features + true tail graph message passing + tail-CVaR penalty.
                 dict(label="FullGNN_TailMessage_GLSBenchmark_HardEffort", use_graph=True, graph_kind="tail", benchmark_kind=cfg.neural_peer_benchmark, penalty_kind="tail_cvar", feature_mode="raw"),
