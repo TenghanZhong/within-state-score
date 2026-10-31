@@ -448,9 +448,9 @@ def objective_from_pi(pi: np.ndarray, payments: np.ndarray, cfg: ExperimentConfi
 def policy_objective_score(principal_ce: float, crowding: float, mean_effort: float, cfg: ExperimentConfig) -> float:
     """Policy-selection objective used in grid search and neural validation.
 
-    principal_ce is reported as a clean financial metric. policy_objective is
-    the paper-aligned training/selection metric: principal CE minus systemic
-    crowding penalty and an effort shortfall penalty.
+    principal_ce reports financial certainty equivalent. policy_objective
+    subtracts the systemic crowding and effort-shortfall penalties from
+    principal CE for training and policy selection.
     """
     effort_gap = max(0.0, float(cfg.effort_target) - float(mean_effort))
     return float(principal_ce - cfg.crowding_obj_weight * float(crowding) - cfg.effort_target_weight * effort_gap * effort_gap)
@@ -915,10 +915,9 @@ def build_episode_set(
         degree = A_tail.sum(axis=1)
         m_cent = degree / (np.mean(degree) + 1e-8)
         m_cent = np.nan_to_num(m_cent, nan=1.0, posinf=1.0, neginf=1.0)
-        # Tail-event marginal contribution score. This is intentionally more
-        # financial than centrality: it asks which nodes lose money when the
-        # aggregate portfolio is in the rolling worst tail, then propagates that
-        # contribution through the tail graph.
+        # Tail-event marginal contribution score: estimate each node's loss
+        # when the aggregate portfolio is in the rolling worst tail, then
+        # propagate that contribution through the tail graph.
         agg_loss = -np.nanmean(Rwin, axis=1)
         tail_cut = np.nanquantile(agg_loss, 1.0 - cfg.tail_q)
         tail_mask = agg_loss >= tail_cut
@@ -935,12 +934,10 @@ def build_episode_set(
         random_perm = rng.permutation(n)
         m_random = m_tail_cvar[random_perm]
 
-        # Graph-propagated tail-shock generation. Earlier versions generated
-        # future residual shocks by factor/residual bootstrap only, so the true
-        # graph and random graph faced nearly identical tail distributions. This
-        # transformation makes the simulated downside distribution depend on the
-        # true public tail graph while all methods are evaluated on the same
-        # graph-dependent environment.
+        # Propagate bootstrapped residual shocks through the true public tail
+        # graph. This makes the simulated downside distribution depend on that
+        # graph; all methods share the same graph-dependent environment.
+        # With propagation disabled, the residual bootstrap is used directly.
         rho_prop = float(getattr(cfg, "graph_propagation_rho", 0.0))
         if rho_prop > 1e-12:
             rho_prop = min(max(rho_prop, 0.0), 0.95)
@@ -1135,9 +1132,9 @@ def evaluate_fixed_method(
 ) -> Tuple[Dict[str, float], Optional[pd.DataFrame]]:
     """Evaluate a fixed contract on MC/bootstrap scenario paths.
 
-    The previous single-realized-path evaluation made co-crash and CVaR weak
-    evidence. Here each decision state is evaluated over es.Fsum_mc and
-    es.resid_sum_mc, so downside risk reacts to the contract-induced exposure s*.
+    Each decision state is evaluated over es.Fsum_mc and es.resid_sum_mc.
+    Contract-induced exposure s* determines payoffs across these scenarios,
+    from which co-crash and CVaR metrics are computed.
     """
     theta0, eta0, lambda0 = coeffs
     B, N = es.B, es.N
@@ -1377,8 +1374,8 @@ class UnconstrainedContractNet(nn.Module):
 def project_to_hard_effort_torch(theta: "torch.Tensor", eta: "torch.Tensor", cfg: ExperimentConfig) -> Tuple["torch.Tensor", "torch.Tensor"]:
     """Project coefficients onto theta+eta >= z_min with caps.
 
-    The split between theta and eta is preserved as much as possible. This gives
-    a clean post-hoc projection baseline against constrained-during-training.
+    The projection preserves the theta/eta split where feasible and applies
+    the same coefficient constraints used during constrained training.
     """
     z_old = torch.clamp(theta + eta, min=1e-8)
     z_min = float(max(0.0, cfg.hard_effort_z_min))
@@ -1525,11 +1522,11 @@ def neural_objective(out: Dict[str, "torch.Tensor"], cfg: ExperimentConfig) -> "
 
 
 def feature_indices(mode: str) -> List[int]:
-    """Feature modes for clean graph ablations.
+    """Feature subsets and permutations for the graph ablations.
 
     Full feature vector is [mu_ann, vol, beta, s0, drawdown, tail_loss,
     centrality_score, tail_cvar_score, vix]. Raw mode removes graph-derived
-    scores so RawNodeMLP and clean RandomGNN cannot leak true graph information.
+    scores for the RawNodeMLP and RandomGNN feature inputs.
     Random-score mode keeps the same dimensionality as GraphSignal-ICL but
     permutes only the standardized tail-CVaR score. Centrality and all other
     feature columns remain unchanged.
@@ -2734,7 +2731,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
                 etf_results, etf_grid, etf_details = run_fixed_baselines(etf_train, etf_val, etf_test, cfg, tables_dir, prefix="etf")
                 etf_results_all = etf_results
                 if args.run_neural and not args.skip_neural and TORCH_AVAILABLE and etf_train.B > 5 and etf_val.B > 2:
-                    print("Training ETF clean neural graph controls...")
+                    print("Training ETF neural graph controls...")
                     etf_specs = [
                         dict(label="ETF_RawNodeMLP_GLS_NoGraph_HardEffort", use_graph=False, graph_kind="equal", benchmark_kind=cfg.neural_peer_benchmark, penalty_kind="none", feature_mode="raw"),
                         dict(label="ETF_GraphSignal-ICL-NoPenalty", use_graph=False, graph_kind="equal", benchmark_kind=cfg.neural_peer_benchmark, penalty_kind="none", feature_mode="graph_scores"),
@@ -2851,7 +2848,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--window", type=int, default=252, help="Rolling lookback window in trading days.")
     p.add_argument("--mc_paths", type=int, default=50, help="Bootstrap scenario paths per decision state for MC tail evaluation.")
     p.add_argument("--seed", type=int, default=7, help="Random seed.")
-    p.add_argument("--exact_neural_ic", action="store_true", help="Use exact batched linear-system IC layer for neural contracts. Slower but paper-faithful.")
+    p.add_argument("--exact_neural_ic", action="store_true", help="Use the exact batched linear-system IC layer for neural contracts.")
     p.add_argument("--torch_threads", type=int, default=1, help="Number of PyTorch CPU threads. Default 1 for stable Windows runs.")
     p.add_argument("--crowding_obj_weight", type=float, default=0.10, help="Penalty weight on mean model-implied crowding in policy selection/training.")
     p.add_argument("--effort_target", type=float, default=0.040, help="Minimum mean effort target for neural training; set <=0 to disable.")

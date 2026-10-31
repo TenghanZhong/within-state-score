@@ -47,7 +47,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--hard_effort_z_cap", type=float, default=1.20)
     p.add_argument("--neural_peer_benchmark", default="gls", choices=["gls", "equal"])
     p.add_argument("--skip_etf", action="store_true")
-    p.add_argument("--quick", action="store_true", help="Smoke-test mode; not paper-faithful.")
+    p.add_argument("--quick", action="store_true", help="Smoke-test mode with reduced epochs, scenario paths, and episode frequency.")
     return p.parse_args()
 
 

@@ -6,7 +6,7 @@ Paper figures for the risk-signal placement version of Contract Learning.
 The figures compare penalty placement and the randomized-score control:
     1. Graph-penalty contract vs feature-only contract placement effects.
     2. Graph-penalty contract vs randomized-score contract boundary.
-    3. A clean CVaR/crowding frontier with the randomized-score control included.
+    3. A CVaR/crowding frontier with the randomized-score control included.
 
 Example:
     python src/Plot.py --results_dir results/frozen500 --out_dir figures/frozen500_rebuilt
@@ -609,7 +609,7 @@ def main() -> None:
     parser.add_argument("--show_fig2_error_bars", action="store_true")
     parser.add_argument("--show_fig3_band", action="store_true")
     parser.add_argument("--skip_diagnostic_figures", action="store_true", help="Skip placement and randomized-score diagnostic figures.")
-    parser.add_argument("--only_frontier", action="store_true", help="Only generate the clean frontier figure.")
+    parser.add_argument("--only_frontier", action="store_true", help="Only generate the frontier figure.")
     parser.add_argument("--force_nopenalty_figure", action="store_true")
     args = parser.parse_args()
 
