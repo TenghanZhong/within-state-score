@@ -12,7 +12,7 @@ No raw data are needed. The frozen 500-path result tables are in
 Recommended check:
 
 ```bash
-python scripts/validate_artifact.py
+python -m unittest discover -s tests -p "test_artifact_integrity.py"
 ```
 
 ## Level 2: Rebuild Aggregate Figures
@@ -44,6 +44,18 @@ python src/CON2.py \
 
 This command reloads the source checkpoints in `checkpoints/source_50path/` and
 re-evaluates them using 500 common bootstrap scenario paths per decision state.
+
+### Randomized-score artifact provenance
+
+[PR #1](https://github.com/TenghanZhong/within-state-score/pull/1), merged on
+2026-08-11, changed the randomized-score feature transform to permute only the
+standardized tail-score column while preserving the other feature columns.
+The current source includes this fix. The included source-run and frozen-evaluation
+summaries do not record code revisions, training/evaluation timestamps, or
+checkpoint hashes. They therefore do not establish whether the included
+RandomSignal checkpoints and results were retrained and re-evaluated after the
+change. Resolving that provenance requires a run manifest linking the corrected
+training code, checkpoint hashes, and regenerated comparison outputs.
 
 ## Constant-Score Penalty Ablation
 

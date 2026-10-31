@@ -3,8 +3,7 @@
 """
 Paper figures for the risk-signal placement version of Contract Learning.
 
-The current paper claim is signal placement, not universal graph-score dominance.
-The figures therefore prioritize:
+The figures compare penalty placement and the randomized-score control:
     1. Graph-penalty contract vs feature-only contract placement effects.
     2. Graph-penalty contract vs randomized-score contract boundary.
     3. A clean CVaR/crowding frontier with the randomized-score control included.
@@ -311,7 +310,7 @@ def make_frontier_plot(
     show_error_bars: bool = False,
     force_nopenalty: bool = False,
 ) -> Optional[Path]:
-    # CIKM short version: Figure 1 is a four-method placement frontier.
+    # Figure 1 is a four-method placement frontier.
     # If ETF summaries are available, draw Industry and ETF as two panels.
     keep = ["RawNode"]
     if include_nopenalty:

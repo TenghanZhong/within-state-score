@@ -163,13 +163,12 @@ class ExperimentConfig:
     theta_cap: float = 0.70
     eta_cap: float = 0.70
     lambda_cap: float = 0.10
-    # Strong graph-aware version: force neural contracts to maintain the same
+    # Require neural contracts to maintain the same
     # effort incentive intensity as RPE baselines. Since e*=alpha*(theta+eta)
     # and alpha0=0.05, z_min=0.80 implies mean effort about 0.04.
     hard_effort_z_min: float = 0.80
     hard_effort_z_cap: float = 1.20
-    # The peer benchmark used in the contract. In the strong version we do not
-    # use the tail graph as peer benchmark; graph information enters through
+    # The contract uses a GLS/equal peer benchmark; graph information enters through
     # message passing and systemic-risk scores only.
     neural_peer_benchmark: str = "gls"
 
@@ -178,9 +177,9 @@ class ExperimentConfig:
     cvar_kappa: float = 0.65
     payment_var_weight: float = 0.05
     turnover_weight: float = 0.01
-    # Extra objective terms that align training/grid-search with the graph-aware
-    # systemic-risk-control claim. `principal_CE` remains the pure financial CE;
-    # `policy_objective` includes these two penalties.
+    # Training and grid search penalize systemic crowding and effort shortfall.
+    # `principal_CE` remains the financial CE metric; `policy_objective`
+    # includes both penalties.
     crowding_obj_weight: float = 0.10
     effort_target: float = 0.040
     effort_target_weight: float = 50.0
@@ -1499,11 +1498,10 @@ def cvar_torch(loss: "torch.Tensor", alpha: float) -> "torch.Tensor":
 
 
 def neural_objective(out: Dict[str, "torch.Tensor"], cfg: ExperimentConfig) -> "torch.Tensor":
-    """Risk-sensitive neural objective with explicit graph-claim constraints.
+    """Neural objective with crowding and effort-shortfall penalties.
 
-    The two added terms address the previous failure mode: a neural model could
-    win by becoming a low-effort near-linear contract and ignoring graph-risk
-    terms. We therefore penalize model-implied crowding and effort shortfall.
+    The penalties account for model-implied crowding and shortfall from the
+    target effort level when comparing contracts during training.
     """
     Pi = out["Pi"]
     payments = out["payments"]
@@ -2178,7 +2176,7 @@ def run_projection_ablation(
 # -----------------------------------------------------------------------------
 
 def default_method_specs() -> List[MethodSpec]:
-    # Strong fixed baselines for the final graph-aware version.
+    # Fixed baselines for the graph-aware contract specification.
     # Important design choice: the peer benchmark is GLS/equal, not the tail graph.
     # Graph information enters through systemic-risk scores and neural message passing.
     return [
@@ -2247,9 +2245,8 @@ def run_fixed_baselines(
 def make_target_effort_frontier(train: EpisodeSet, test: EpisodeSet, cfg: ExperimentConfig, out_dir: Path, prefix: str) -> pd.DataFrame:
     """Choose each method's coefficients subject to the same minimum effort.
 
-    This prevents a weak but overly conservative contract from winning simply
-    because it induces little effort/risk. It directly supports the paper's
-    risk-incentive frontier claim.
+    Matching the minimum effort makes the risk comparison conditional on a
+    common incentive requirement.
     """
     specs = [
         MethodSpec("LinearPnL", weight_kind="equal", penalty_kind="none", allow_theta=True, allow_eta=False, allow_lambda=False),
@@ -2293,7 +2290,7 @@ def make_target_effort_frontier(train: EpisodeSet, test: EpisodeSet, cfg: Experi
 
 
 def make_ablation_table(test: EpisodeSet, cfg: ExperimentConfig, out_dir: Path, prefix: str, reference_coeffs: Tuple[float, float, float]) -> pd.DataFrame:
-    # Final ablation: peer benchmark is GLS/equal; graph is used only as risk score.
+    # Ablation: peer benchmark is GLS/equal; graph is used only as risk score.
     th, et, la = reference_coeffs
     specs = [
         MethodSpec("Ablation_Full_GLS_tailCVaR", weight_kind="gls", penalty_kind="tail_cvar", allow_theta=True, allow_eta=True, allow_lambda=True),
@@ -2800,7 +2797,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
                     "co_crash_freq": float(g["co_crash"].mean()),
                     "mean_effort": float(g["mean_effort"].mean()),
                 })
-        # High-VIX regime is the cleanest stress subset for graph evidence.
+        # Report the High-VIX stress subset when VIX observations are available.
         vix_s = pd.Series(test.vix, index=test.dates).replace([np.inf, -np.inf], np.nan).dropna()
         if not vix_s.empty:
             cut = float(np.nanquantile(vix_s.values, 0.90))
@@ -3425,58 +3422,6 @@ def deprecated_random_graph_boundary_note(base_out: Path) -> pd.DataFrame:
     return out
 
 
-def claim_diagnostics_table(paired: pd.DataFrame, boundary: pd.DataFrame, base_out: Path) -> pd.DataFrame:
-    def supported(dataset: str, comparison_type: str, metrics: Sequence[str], min_count: int = 1) -> bool:
-        if paired.empty or "dataset" not in paired.columns:
-            return False
-        sub = paired[
-            (paired["dataset"] == dataset)
-            & (paired["comparison_type"] == comparison_type)
-            & (paired["metric"].isin(metrics))
-        ]
-        return int((sub["claim_support"] == "supports_treatment").sum()) >= min_count if not sub.empty else False
-
-    risk_metrics = ["CVaR95_loss", "CVaR99_loss", "crowding", "co_crash_freq"]
-    etf_boundary = boundary[(boundary["dataset"] == "etf") & (boundary["metric"].isin(risk_metrics))] if "dataset" in boundary.columns else pd.DataFrame()
-    random_signal_available = bool(boundary.get("learned_signal_delta", pd.Series(dtype=float)).notna().any()) if not boundary.empty else False
-    etf_learned_all = bool((etf_boundary["learned_signal_supported"] == True).all()) if not etf_boundary.empty and "learned_signal_supported" in etf_boundary.columns else False
-    rows = [
-        {
-            "claim": "Explicit risk-penalty placement improves downside/systemic metrics versus graph-score feature-only input.",
-            "required_evidence": "The graph-penalty contract beats the feature-only contract on CVaR/crowding/co-crash paired comparisons.",
-            "status": "supported" if supported("industry", "placement_vs_feature_only", risk_metrics, min_count=2) else "not_supported_or_mixed",
-            "recommended_wording": "Explicit risk-signal penalties yield small but statistically stable reductions in downside and crowding metrics.",
-        },
-        {
-            "claim": "Learned graph-risk scores dominate randomized same-architecture risk scores in all universes.",
-            "required_evidence": "The graph-penalty contract beats the randomized-score contract in both industry and ETF settings.",
-            "status": "missing_random_signal_cell" if not random_signal_available else ("not_supported" if not etf_learned_all else "supported"),
-            "recommended_wording": "Use the randomized-score control before claiming a learned-score boundary.",
-        },
-        {
-            "claim": "The graph-penalty contract improves certainty-equivalent/principal CE.",
-            "required_evidence": "Positive principal_CE delta with CI excluding zero.",
-            "status": "supported" if supported("industry", "placement_vs_feature_only", ["principal_CE"], min_count=1) else "not_supported_or_mixed",
-            "recommended_wording": "The main effect is downside/systemic-risk control, not CE improvement.",
-        },
-        {
-            "claim": "The contribution is distinct from generic decision-focused learning.",
-            "required_evidence": "Paper positions the design as signal placement in a partially specified constrained decision layer.",
-            "status": "writing_required",
-            "recommended_wording": "We study whether risk signals enter as ordinary neural features or explicit semantic penalty terms, not a new differentiable optimizer.",
-        },
-        {
-            "claim": "The penalty is externally auditable in a real-world regulatory sense.",
-            "required_evidence": "External audit protocol and verified contract settlement data.",
-            "status": "avoid_claim",
-            "recommended_wording": "Use explicit, interpretable, or contractible risk penalty instead of an auditability claim.",
-        },
-    ]
-    out = pd.DataFrame(rows)
-    write_display_csv(out, base_out / "claim_diagnostics.csv")
-    return out
-
-
 def run_artifact_diagnostics(base_out: Path, seeds: Sequence[int], seed_reps: int = 10000, episode_reps: int = 5000) -> Dict[str, pd.DataFrame]:
     base_out = Path(base_out)
     paired = paired_seed_significance_table(base_out, seeds, reps=seed_reps)
@@ -3486,7 +3431,6 @@ def run_artifact_diagnostics(base_out: Path, seeds: Sequence[int], seed_reps: in
     multiple = multiple_testing_table(paired, clustered, base_out)
     audit = method_design_audit_table(base_out, seeds)
     deprecated = deprecated_random_graph_boundary_note(base_out)
-    claims = claim_diagnostics_table(paired, boundary, base_out)
     return {
         "paired_significance": paired,
         "episode_bootstrap": episode,
@@ -3495,7 +3439,6 @@ def run_artifact_diagnostics(base_out: Path, seeds: Sequence[int], seed_reps: in
         "deprecated_random_graph_boundary": deprecated,
         "multiple_testing": multiple,
         "method_design_audit": audit,
-        "claim_diagnostics": claims,
     }
 
 
@@ -3524,8 +3467,8 @@ def run_multi_seed(args: argparse.Namespace) -> None:
         seed_args.seed = int(seed)
         seed_args.seeds = ""
         seed_args.out_dir = str(base_out / f"seed_{seed}")
-        # Avoid spending time on figures for every seed unless the user explicitly
-        # wants them. The aggregated CSVs are the important evidence.
+        # Per-seed plots are disabled in multi-seed mode; aggregate
+        # CSV outputs are written after all seeds finish.
         if not getattr(args, "no_plots", False):
             seed_args.no_plots = True
         print("\n" + "=" * 80)

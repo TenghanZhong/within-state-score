@@ -46,7 +46,6 @@ docs/
   ARTIFACTS.md            File-level artifact guide
 
 scripts/
-  validate_artifact.py    Static checks for key files, paths, and headline values
   run_constant_score_ablation.py
                            Train and evaluate the constant-score penalty ablation
 ```
@@ -63,6 +62,9 @@ Training used 50 bootstrap scenario paths per decision state. Reported test-set
 risk metrics were produced by reloading the saved source checkpoints and
 evaluating the trained policies with 500 common bootstrap scenario paths per
 state.
+
+Artifact provenance for the randomized-score control is described in
+[`docs/REPRODUCTION.md`](docs/REPRODUCTION.md#randomized-score-artifact-provenance).
 
 The key table is:
 
@@ -90,12 +92,13 @@ of directly multiplying the penalty by the graph-risk score.
 From the repository root:
 
 ```bash
-python scripts/validate_artifact.py
+python -m unittest discover -s tests -p "test_artifact_integrity.py"
 ```
 
-The script checks that the expected result files, figure files, and source
-checkpoints are present; verifies that public artifacts do not contain local
-absolute paths; and prints the headline frozen-evaluation CVaR95 rows.
+The tests check the expected result files, figure files, source checkpoint
+counts, and selected frozen-evaluation and constant-score comparison values.
+They check the included artifact contents; they do not reproduce training or
+establish the training-code provenance of the checkpoints.
 
 ## Rebuilding Figures from Included Results
 

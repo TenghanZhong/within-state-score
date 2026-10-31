@@ -14,7 +14,6 @@
   tests and main pooled CVaR95 rows.
 - `results/frozen500/multi_seed_cluster_episode_bootstrap.csv`: clustered
   bootstrap intervals for episode-averaged and state-averaged metrics.
-- `results/frozen500/claim_diagnostics.csv`: compact diagnostic checks.
 - `results/frozen500/method_design_audit.csv`: method-design audit
   table for matched architecture, feasibility, and control settings.
 
