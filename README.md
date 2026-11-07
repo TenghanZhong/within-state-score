@@ -160,3 +160,10 @@ pip install -r requirements.txt
 
 The code was written for Python 3.10+ and uses NumPy, pandas, SciPy, PyTorch,
 Matplotlib, and PyArrow. See `docs/ENVIRONMENT.md` for environment notes.
+
+## Citation
+
+Zhong, T. (2026). Feature or Penalty? A Placement Diagnostic for Graph-Risk
+Signals in Learned Portfolio Decisions. In *Proceedings of the 35th ACM
+International Conference on Information and Knowledge Management*
+(pp. 8104–8108). ACM. [DOI](https://doi.org/10.1145/3799682.3839875).
